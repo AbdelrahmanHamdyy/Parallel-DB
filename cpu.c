@@ -173,10 +173,10 @@ int main() {
         switch (choice) {
             case 1: {
                 char column[50];
-                printf("Choose a column to search in:\n");
+                printf("SELECT * FROM table1 WHERE ");
                 scanf("%s", column);
                 int target;
-                printf("Enter the target value to search: ");
+                printf("EQUAL TO ");
                 scanf("%d", &target);
                 int data[MAX_VALUES], columnIndex;
                 char** data_tokens = (char**)malloc(MAX_VALUES * sizeof(char*));
@@ -192,12 +192,12 @@ int main() {
                 break;
             }
             case 2:
-                printf("Choose a sorting algorithm:\n");
+                printf("Algorithm:\n");
                 printf("1. Merge Sort\n");
                 printf("2. Radix Sort\n");
                 scanf("%d", &choice);
                 char column[50];
-                printf("Choose a column to order by:\n");
+                printf("SELECT * FROM table1 ORDER BY ");
                 scanf("%s", column);
                 int data[MAX_VALUES], columnIndex;
                 char** data_tokens = (char**)malloc(MAX_VALUES * sizeof(char*));
@@ -227,10 +227,10 @@ int main() {
                 free(data_tokens);
                 break;
             case 3: {
-                printf("Choose a column to join on for the first table:\n");
+                printf("SELECT * FROM table1 INNER JOIN table2 ON table1.");
                 char column1[50], column2[50];
                 scanf("%s", column1);
-                printf("Choose a column to join on for the second table:\n");
+                printf("EQUAL table2.");
                 scanf("%s", column2);
                 int data1[MAX_VALUES], data2[MAX_VALUES], columnIndex1, columnIndex2;
                 char** data_tokens1 = (char**)malloc(MAX_VALUES * sizeof(char*));

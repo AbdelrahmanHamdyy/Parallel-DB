@@ -9,19 +9,19 @@ def generate():
     data.csv will be used for searching and sorting operations
     data1.csv and data2.csv will be used for join operation
     '''
-    with open('data.csv', 'w') as f:
+    with open('table1.csv', 'w') as f:
         writer = csv.writer(f)
         writer.writerow(['id', 'value', 'symbol'])
         for i in range(SIZE):
             writer.writerow([i, random.randint(0, MAX_VALUE), chr(random.randint(65, 90))])
             
-    with open('data1.csv', 'w') as f:
+    with open('table2.csv', 'w') as f:
         writer = csv.writer(f)
         writer.writerow(['id', 'value', 'symbol'])
         for i in range(SIZE):
             writer.writerow([i, random.randint(0, MAX_VALUE), chr(random.randint(65, 90))])
             
-    with open('data2.csv', 'w') as f:
+    with open('table3.csv', 'w') as f:
         writer = csv.writer(f)
         writer.writerow(['id', 'value', 'symbol'])
         for i in range(SIZE):
