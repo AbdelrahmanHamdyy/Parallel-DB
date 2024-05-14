@@ -126,7 +126,7 @@ void innerJoin(int arr1[], char **data1 , int size1, int arr2[], char **data2, i
     for (int i = 0; i < size1; i++) {
         for (int j = 0; j < size2; j++) {
             if (arr1[i] == arr2[j]) {
-                printf("%s%s", data1[i], data2[j]);
+                printf("%s%s\n", data1[i], data2[j]);
             }
         }
     }
@@ -141,9 +141,8 @@ int readCSV(char *filename, char **data, int arr[], char *column, int *columnInd
     while (fgets(line, sizeof(line), file)) {
         if (firstLine) {
             char** tokens = split(line, ',', &num_tokens);
-            tokens[num_tokens - 1][strlen(tokens[num_tokens - 1]) - 1] = '\0';
             for (int i = 0; i < num_tokens; i++) {
-                if (strcmp(tokens[i], column) == 0) {
+                if (strncmp(column, tokens[i], strlen(column)) == 0) {
                     *columnIndex = i;
                     break;
                 }
