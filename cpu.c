@@ -180,7 +180,7 @@ int main() {
                 scanf("%d", &target);
                 int data[MAX_VALUES], columnIndex;
                 char** data_tokens = (char**)malloc(MAX_VALUES * sizeof(char*));
-                int size = readCSV("data.csv", data_tokens, data, column, &columnIndex);
+                int size = readCSV("table_1.csv", data_tokens, data, column, &columnIndex);
                 int index = linearSearch(data, size, target);
                 if (index != -1) {
                     printf("Element found at index: %d\n", index);
@@ -201,7 +201,7 @@ int main() {
                 scanf("%s", column);
                 int data[MAX_VALUES], columnIndex;
                 char** data_tokens = (char**)malloc(MAX_VALUES * sizeof(char*));
-                int size = readCSV("data.csv", data_tokens, data, column, &columnIndex);
+                int size = readCSV("table_1.csv", data_tokens, data, column, &columnIndex);
                 if (choice == 1) {
                     printf("Using Merge Sort.\n");
                     mergeSort(data, 0, size - 1);
@@ -235,8 +235,8 @@ int main() {
                 int data1[MAX_VALUES], data2[MAX_VALUES], columnIndex1, columnIndex2;
                 char** data_tokens1 = (char**)malloc(MAX_VALUES * sizeof(char*));
                 char** data_tokens2 = (char**)malloc(MAX_VALUES * sizeof(char*));
-                int size1 = readCSV("data1.csv", data_tokens1, data1, column1, &columnIndex1);
-                int size2 = readCSV("data2.csv", data_tokens2, data2, column2, &columnIndex2);
+                int size1 = readCSV("table_2.csv", data_tokens1, data1, column1, &columnIndex1);
+                int size2 = readCSV("table_3.csv", data_tokens2, data2, column2, &columnIndex2);
 
                 // Perform inner join operation
                 printf("Inner join result:\n");
