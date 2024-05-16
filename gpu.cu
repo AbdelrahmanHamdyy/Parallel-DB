@@ -10,6 +10,7 @@
 #include <time.h>
 
 #define MAX_VALUES 100
+#define MAX_MATCHES (MAX_VALUES * MAX_VALUES)
 #define BLOCK_SIZE 256
 
 // Function to split a string by delimiter
@@ -99,8 +100,19 @@ __global__ void parallelMergeSort(int arr[], int sorted[], int size, int chunkSi
     merge(arr, sorted, start, mid, end);
 }
 
-__global__ void parallelInnerJoin(int arr1[], int arr2[], int size1, int size2) {
-    // Implement parallel inner join here
+__global__ void parallelInnerJoin(int arr1[], int arr2[], int **matchedIndices, int *numMatches, int size1, int size2) {
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index < size1) {
+        for (int i = 0; i < size2; i++) {
+            if (arr1[index] == arr2[i]) {
+                int matchIndex = atomicAdd(numMatches, 1);
+                if (matchIndex < MAX_MATCHES) {
+                    matchedIndices[matchIndex][0] = index;
+                    matchedIndices[matchIndex][1] = i;
+                }
+            }
+        }
+    }
 }
 
 void linearSearchWrapper(int arr[], int size, int target) {
@@ -141,16 +153,40 @@ void mergeSortWrapper(int arr[], int size) {
     cudaFree(d_sorted);
 }
 
-void innerJoinWrapper(int arr1[], int arr2[], int size1, int size2) {
+void innerJoinWrapper(int arr1[], int arr2[], char **data1, char **data2, int size1, int size2) {
     int *d_arr1, *d_arr2;
+    int *numMatches = (int*)malloc(sizeof(int));
+    *numMatches = 0;
+    int ** matchedIndices = (int**)malloc(MAX_MATCHES * 2 * sizeof(int*));
+    int **d_matchedIndices, *d_numMatches;
+
     cudaMalloc(&d_arr1, size1 * sizeof(int));
     cudaMalloc(&d_arr2, size2 * sizeof(int));
+    cudaMalloc((void***)&d_matchedIndices, MAX_MATCHES * 2 * sizeof(int*));
+    cudaMalloc(&d_numMatches, sizeof(int));
+
     cudaMemcpy(d_arr1, arr1, size1 * sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(d_arr2, arr2, size2 * sizeof(int), cudaMemcpyHostToDevice);
-    parallelInnerJoin<<<(size1 + BLOCK_SIZE - 1) / BLOCK_SIZE, BLOCK_SIZE>>>(d_arr1, d_arr2, size1, size2);
+    cudaMemcpy(d_numMatches, numMatches, sizeof(int), cudaMemcpyHostToDevice);
+
+    int numberOfBlocks = (size1 + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    parallelInnerJoin<<<numberOfBlocks, BLOCK_SIZE>>>(d_arr1, d_arr2, d_matchedIndices, d_numMatches, size1, size2);
     cudaDeviceSynchronize();
+
+    cudaMemcpy(numMatches, d_numMatches, sizeof(int), cudaMemcpyDeviceToHost);
+    cudaMemcpy(matchedIndices, d_matchedIndices, *numMatches * 2 * sizeof(int), cudaMemcpyDeviceToHost);
+
+    printf("Inner Join result:\n");
+    for (int i = 0; i < *numMatches; i++) {
+        int index1 = matchedIndices[i][0];
+        int index2 = matchedIndices[i][1];
+        printf("%s%s\n", data1[index1], data2[index2]);
+    }
+
     cudaFree(d_arr1);
     cudaFree(d_arr2);
+    cudaFree(d_matchedIndices);
+    cudaFree(d_numMatches);
 }
 
 int main() {
@@ -236,10 +272,7 @@ int main() {
                 int size2 = readCSV(table2, data_tokens2, data2, column2, &columnIndex2);
 
                 // Parallel Inner Join
-                innerJoinWrapper(data1, data2, size1, size2);
-
-                printf("Inner join result:\n");
-                // TODO
+                innerJoinWrapper(data1, data2, data_tokens1, data_tokens2, size1, size2);
 
                 free(data_tokens1);
                 free(data_tokens2);
