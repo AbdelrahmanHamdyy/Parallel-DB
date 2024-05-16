@@ -100,15 +100,15 @@ __global__ void parallelMergeSort(int arr[], int sorted[], int size, int chunkSi
     merge(arr, sorted, start, mid, end);
 }
 
-__global__ void parallelInnerJoin(int arr1[], int arr2[], int **matchedIndices, int *numMatches, int size1, int size2) {
+__global__ void parallelInnerJoin(int arr1[], int arr2[], int *matchedIndices, int *numMatches, int size1, int size2) {
     int index = blockIdx.x * blockDim.x + threadIdx.x;
     if (index < size1) {
         for (int i = 0; i < size2; i++) {
             if (arr1[index] == arr2[i]) {
                 int matchIndex = atomicAdd(numMatches, 1);
                 if (matchIndex < MAX_MATCHES) {
-                    matchedIndices[matchIndex][0] = index;
-                    matchedIndices[matchIndex][1] = i;
+                    matchedIndices[matchIndex * 2] = index;
+                    matchedIndices[(matchIndex * 2) + 1] = i;
                 }
             }
         }
@@ -157,12 +157,12 @@ void innerJoinWrapper(int arr1[], int arr2[], char **data1, char **data2, int si
     int *d_arr1, *d_arr2;
     int *numMatches = (int*)malloc(sizeof(int));
     *numMatches = 0;
-    int ** matchedIndices = (int**)malloc(MAX_MATCHES * 2 * sizeof(int*));
-    int **d_matchedIndices, *d_numMatches;
+    int *matchedIndices = (int*)malloc(MAX_MATCHES * 2 * sizeof(int));
+    int *d_matchedIndices, *d_numMatches;
 
     cudaMalloc(&d_arr1, size1 * sizeof(int));
     cudaMalloc(&d_arr2, size2 * sizeof(int));
-    cudaMalloc((void***)&d_matchedIndices, MAX_MATCHES * 2 * sizeof(int*));
+    cudaMalloc(&d_matchedIndices, MAX_MATCHES * 2 * sizeof(int));
     cudaMalloc(&d_numMatches, sizeof(int));
 
     cudaMemcpy(d_arr1, arr1, size1 * sizeof(int), cudaMemcpyHostToDevice);
@@ -178,8 +178,8 @@ void innerJoinWrapper(int arr1[], int arr2[], char **data1, char **data2, int si
 
     printf("Inner Join result:\n");
     for (int i = 0; i < *numMatches; i++) {
-        int index1 = matchedIndices[i][0];
-        int index2 = matchedIndices[i][1];
+        int index1 = matchedIndices[i * 2];
+        int index2 = matchedIndices[(i * 2) + 1];
         printf("%s%s\n", data1[index1], data2[index2]);
     }
 
