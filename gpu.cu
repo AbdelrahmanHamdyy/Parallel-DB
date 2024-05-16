@@ -183,6 +183,9 @@ void innerJoinWrapper(int arr1[], int arr2[], char **data1, char **data2, int si
         printf("%s%s\n", data1[index1], data2[index2]);
     }
 
+    free(numMatches);
+    free(matchedIndices);
+
     cudaFree(d_arr1);
     cudaFree(d_arr2);
     cudaFree(d_matchedIndices);
