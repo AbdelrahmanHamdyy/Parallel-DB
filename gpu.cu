@@ -72,10 +72,20 @@ bool isSorted(int* arr, int size)  {
     return true;
 }
 
-__global__ void parallelLinearSearch(int arr[], int size, int *output, int target) {
+__global__ void parallelLinearSearch(int arr[], int size, int *matchedIndices, int *numMatches, int target) {
+    __shared__ int sharedArr[BLOCK_SIZE];
     int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index < size && arr[index] == target) {
-        *output = index;
+    if (threadIdx.x < size) {
+        sharedArr[threadIdx.x] = arr[index];
+    }
+    __syncthreads();
+    if (index < size) {
+        if (sharedArr[threadIdx.x] == target) {
+            int matchIndex = atomicAdd(numMatches, 1);
+            if (matchIndex < MAX_VALUES) {
+                matchedIndices[matchIndex] = index;
+            }
+        }
     }
 }
 
@@ -101,10 +111,15 @@ __global__ void parallelMergeSort(int arr[], int sorted[], int size, int chunkSi
 }
 
 __global__ void parallelInnerJoin(int arr1[], int arr2[], int *matchedIndices, int *numMatches, int size1, int size2) {
+    __shared__ int sharedArr2[BLOCK_SIZE];
     int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (threadIdx.x < size2) {
+        sharedArr2[threadIdx.x] = arr2[index];
+    }
+    __syncthreads();
     if (index < size1) {
         for (int i = 0; i < size2; i++) {
-            if (arr1[index] == arr2[i]) {
+            if (arr1[index] == sharedArr2[i]) {
                 int matchIndex = atomicAdd(numMatches, 1);
                 if (matchIndex < MAX_MATCHES) {
                     matchedIndices[matchIndex * 2] = index;
@@ -115,23 +130,35 @@ __global__ void parallelInnerJoin(int arr1[], int arr2[], int *matchedIndices, i
     }
 }
 
-void linearSearchWrapper(int arr[], int size, int target) {
-    int *d_arr, *d_output;
-    int output = -1;
+void linearSearchWrapper(int arr[], char **data, int size, int target) {
+    int *d_arr;
+    int *numMatches = (int*)malloc(sizeof(int));
+    *numMatches = 0;
+    int *matchedIndices = (int*)malloc(MAX_VALUES * sizeof(int));
+    int *d_matchedIndices, *d_numMatches;
     cudaMalloc(&d_arr, size * sizeof(int));
-    cudaMalloc(&d_output, sizeof(int));
+    cudaMalloc(&d_matchedIndices, MAX_VALUES * sizeof(int));
+    cudaMalloc(&d_numMatches, sizeof(int));
+
     cudaMemcpy(d_arr, arr, size * sizeof(int), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_output, &output, sizeof(int), cudaMemcpyHostToDevice);
-    parallelLinearSearch<<<(size + BLOCK_SIZE - 1) / BLOCK_SIZE, BLOCK_SIZE>>>(d_arr, size, d_output, target);
+    cudaMemcpy(d_numMatches, numMatches, sizeof(int), cudaMemcpyHostToDevice);
+
+    parallelLinearSearch<<<(size + BLOCK_SIZE - 1) / BLOCK_SIZE, BLOCK_SIZE>>>(d_arr, size, d_matchedIndices, d_numMatches, target);
     cudaDeviceSynchronize();
-    cudaMemcpy(&output, d_output, sizeof(int), cudaMemcpyDeviceToHost);
-    if (output == -1) {
+    cudaMemcpy(numMatches, d_numMatches, sizeof(int), cudaMemcpyDeviceToHost);
+    cudaMemcpy(matchedIndices, d_matchedIndices, *numMatches * 2 * sizeof(int), cudaMemcpyDeviceToHost);
+
+    printf("Result:\n");
+    if (*numMatches == 0) {
         printf("Element not found.\n");
     } else {
-        printf("Element found at index %d.\n", output);
+        for (int i = 0; i < *numMatches; i++) {
+            printf("%s", data[matchedIndices[i]]);
+        }
     }
     cudaFree(d_arr);
-    cudaFree(d_output);
+    cudaFree(d_matchedIndices);
+    cudaFree(d_numMatches);
 }
 
 void mergeSortWrapper(int arr[], int size) {
@@ -176,7 +203,7 @@ void innerJoinWrapper(int arr1[], int arr2[], char **data1, char **data2, int si
     cudaMemcpy(numMatches, d_numMatches, sizeof(int), cudaMemcpyDeviceToHost);
     cudaMemcpy(matchedIndices, d_matchedIndices, *numMatches * 2 * sizeof(int), cudaMemcpyDeviceToHost);
 
-    printf("Inner Join result:\n");
+    printf("Result:\n");
     for (int i = 0; i < *numMatches; i++) {
         int index1 = matchedIndices[i * 2];
         int index2 = matchedIndices[(i * 2) + 1];
@@ -219,7 +246,7 @@ int main() {
                 int size = readCSV(table, data_tokens, data, column, &columnIndex);
                 
                 // Parallel Linear Search
-                linearSearchWrapper(data, size, target);
+                linearSearchWrapper(data, data_tokens, size, target);
 
                 free(data_tokens);
                 break;
@@ -238,7 +265,7 @@ int main() {
                 // Parallel Merge Sort
                 mergeSortWrapper(data, size);
 
-                printf("Sorted Data:\n");
+                printf("Result:\n");
                 bool *visited = (bool*)malloc(size * sizeof(bool));
                 for (int i = 0; i < size; i++) {
                     for (int j = 0; j < size; j++) {
