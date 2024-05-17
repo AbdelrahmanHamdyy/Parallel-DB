@@ -192,16 +192,12 @@ int main() {
                         printf("%s", data_tokens[result[i]]);
                     }
                 } else {
-                    printf("Element not found\n");
+                    printf("Element not found.\n");
                 }
                 free(data_tokens);
                 break;
             }
             case 2:
-                printf("Algorithm:\n");
-                printf("1. Merge Sort\n");
-                printf("2. Radix Sort\n");
-                scanf("%d", &choice);
                 char column[50], table[50];
                 printf("SELECT * FROM ");
                 scanf("%s", table);
@@ -211,13 +207,7 @@ int main() {
                 char** data_tokens = (char**)malloc(MAX_VALUES * sizeof(char*));
                 strcat(table, ".csv");
                 int size = readCSV(table, data_tokens, data, column, &columnIndex);
-                if (choice == 1) {
-                    printf("Using Merge Sort.\n");
-                    mergeSort(data, 0, size - 1);
-                } else {
-                    printf("Using Radix Sort.\n");
-                    radixSort(data, size);
-                }
+                mergeSort(data, 0, size - 1);
                 printf("Result:\n");
                 bool *visited = (bool*)malloc(size * sizeof(bool));
                 for (int i = 0; i < size; i++) {
