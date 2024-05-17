@@ -44,13 +44,14 @@ int binarySearch(int arr[], int left, int right, int target) {
 }
 
 // Linear search on array
-int linearSearch(int arr[], int size, int target) {
+int linearSearch(int arr[], int result[], int size, int target) {
+    int index = -1;
     for (int i = 0; i < size; ++i) {
         if (arr[i] == target) {
-            return i;
+            result[++index] = i;
         }
     }
-    return -1;
+    return index;
 }
 
 // Merge two sorted sub-arrays
@@ -180,13 +181,16 @@ int main() {
                 int target;
                 printf("EQUAL TO ");
                 scanf("%d", &target);
-                int data[MAX_VALUES], columnIndex;
+                int data[MAX_VALUES], result[MAX_VALUES], columnIndex;
                 char** data_tokens = (char**)malloc(MAX_VALUES * sizeof(char*));
+                strcat(table, ".csv");
                 int size = readCSV(table, data_tokens, data, column, &columnIndex);
-                int index = linearSearch(data, size, target);
-                if (index != -1) {
-                    printf("Element found at index: %d\n", index);
-                    printf("Data: %s", data_tokens[index]);
+                int count = linearSearch(data, result, size, target);
+                printf("Result:\n");
+                if (count != -1) {
+                    for (int i = 0; i <= count; i++) {
+                        printf("%s", data_tokens[result[i]]);
+                    }
                 } else {
                     printf("Element not found\n");
                 }
@@ -205,7 +209,8 @@ int main() {
                 scanf("%s", column);
                 int data[MAX_VALUES], columnIndex;
                 char** data_tokens = (char**)malloc(MAX_VALUES * sizeof(char*));
-                int size = readCSV("table_1.csv", data_tokens, data, column, &columnIndex);
+                strcat(table, ".csv");
+                int size = readCSV(table, data_tokens, data, column, &columnIndex);
                 if (choice == 1) {
                     printf("Using Merge Sort.\n");
                     mergeSort(data, 0, size - 1);
@@ -213,8 +218,7 @@ int main() {
                     printf("Using Radix Sort.\n");
                     radixSort(data, size);
                 }
-                printf("Sorting complete.\n");
-                printf("Sorted Data:\n");
+                printf("Result:\n");
                 bool *visited = (bool*)malloc(size * sizeof(bool));
                 for (int i = 0; i < size; i++) {
                     for (int j = 0; j < size; j++) {
@@ -244,11 +248,13 @@ int main() {
                 int data1[MAX_VALUES], data2[MAX_VALUES], columnIndex1, columnIndex2;
                 char** data_tokens1 = (char**)malloc(MAX_VALUES * sizeof(char*));
                 char** data_tokens2 = (char**)malloc(MAX_VALUES * sizeof(char*));
-                int size1 = readCSV("table_2.csv", data_tokens1, data1, column1, &columnIndex1);
-                int size2 = readCSV("table_3.csv", data_tokens2, data2, column2, &columnIndex2);
+                strcat(table1, ".csv");
+                int size1 = readCSV(table1, data_tokens1, data1, column1, &columnIndex1);
+                strcat(table2, ".csv");
+                int size2 = readCSV(table2, data_tokens2, data2, column2, &columnIndex2);
 
                 // Perform inner join operation
-                printf("Inner join result:\n");
+                printf("Result:\n");
                 innerJoin(data1, data_tokens1, size1, data2, data_tokens2, size2);
                 free(data_tokens1);
                 free(data_tokens2);
