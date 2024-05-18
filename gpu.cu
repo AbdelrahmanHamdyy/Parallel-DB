@@ -11,7 +11,7 @@
 
 typedef long long ll;
 
-#define MAX_VALUES 1000
+#define MAX_VALUES 100000
 #define MAX_MATCHES ((ll)MAX_VALUES * MAX_VALUES)
 #define BLOCK_SIZE 256
 
@@ -113,15 +113,10 @@ __global__ void parallelMergeSort(ll arr[], ll sorted[], ll size, ll chunkSize) 
 }
 
 __global__ void parallelInnerJoin(ll arr1[], ll arr2[], ll *matchedIndices, int *numMatches, ll size1, ll size2) {
-    __shared__ ll sharedArr2[BLOCK_SIZE];
     ll index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (threadIdx.x < size2) {
-        sharedArr2[threadIdx.x] = arr2[index];
-    }
-    __syncthreads();
     if (index < size1) {
         for (ll i = 0; i < size2; i++) {
-            if (arr1[index] == sharedArr2[i]) {
+            if (arr1[index] == arr2[i]) {
                 ll matchIndex = (ll)atomicAdd(numMatches, 1);
                 if (matchIndex < MAX_MATCHES) {
                     matchedIndices[matchIndex * 2] = index;
@@ -267,7 +262,7 @@ void innerJoinWrapper(ll arr1[], ll arr2[], char **data1, char **data2, ll size1
     parallelInnerJoin<<<numberOfBlocks, BLOCK_SIZE, 0, stream>>>(d_arr1, d_arr2, d_matchedIndices, d_numMatches, size1, size2);
 
     cudaStreamSynchronize(stream);
-    cudaMemcpyAsync(numMatches, d_numMatches, sizeof(ll), cudaMemcpyDeviceToHost, stream);
+    cudaMemcpyAsync(numMatches, d_numMatches, sizeof(int), cudaMemcpyDeviceToHost, stream);
     cudaMemcpyAsync(matchedIndices, d_matchedIndices, *numMatches * 2 * sizeof(ll), cudaMemcpyDeviceToHost, stream);
 
     cudaStreamSynchronize(stream);
