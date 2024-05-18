@@ -212,10 +212,10 @@ int main() {
                 fprintf(file, "id,value,symbol\n");
 
                 // Write the results to the file
-                if (count == 0) {
+                if (count < 0) {
                     fprintf(file, "\nElement not found.");
                 } else {
-                    for (ll i = 0; i < count; i++) {
+                    for (ll i = 0; i <= count; i++) {
                         fprintf(file, "%s", data_tokens[result[i]]);
                     }
                 }
