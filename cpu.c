@@ -4,10 +4,12 @@
 #include <stdbool.h>
 #include <time.h>
 
-#define MAX_VALUES 100
+typedef long long ll;
+
+#define MAX_VALUES 10000
 
 // Function to split a string by delimiter
-char** split(const char* s, char delimiter, int* num_tokens) {
+char** split(const char* s, char delimiter, ll* num_tokens) {
     char** tokens = (char**)malloc(MAX_VALUES * sizeof(char*));
     if (tokens == NULL) {
         perror("Memory allocation failed");
@@ -29,9 +31,9 @@ char** split(const char* s, char delimiter, int* num_tokens) {
 }
 
 // Binary search on array
-int binarySearch(int arr[], int left, int right, int target) {
+ll binarySearch(ll arr[], ll left, ll right, ll target) {
     while (left <= right) {
-        int mid = left + (right - left) / 2;
+        ll mid = left + (right - left) / 2;
         if (arr[mid] == target) {
             return mid;
         } else if (arr[mid] < target) {
@@ -44,9 +46,9 @@ int binarySearch(int arr[], int left, int right, int target) {
 }
 
 // Linear search on array
-int linearSearch(int arr[], int result[], int size, int target) {
-    int index = -1;
-    for (int i = 0; i < size; ++i) {
+ll linearSearch(ll arr[], ll result[], ll size, ll target) {
+    ll index = -1;
+    for (ll i = 0; i < size; ++i) {
         if (arr[i] == target) {
             result[++index] = i;
         }
@@ -55,9 +57,9 @@ int linearSearch(int arr[], int result[], int size, int target) {
 }
 
 // Merge two sorted sub-arrays
-void merge(int arr[], int left, int mid, int right) {
-    int temp[right - left + 1];
-    int i = left, j = mid + 1, k = 0;
+void merge(ll arr[], ll left, ll mid, ll right) {
+    ll temp[right - left + 1];
+    ll i = left, j = mid + 1, k = 0;
 
     while (i <= mid && j <= right) {
         if (arr[i] <= arr[j]) {
@@ -75,15 +77,15 @@ void merge(int arr[], int left, int mid, int right) {
         temp[k++] = arr[j++];
     }
 
-    for (int idx = 0; idx < k; ++idx) {
+    for (ll idx = 0; idx < k; ++idx) {
         arr[left + idx] = temp[idx];
     }
 }
 
 // Merge sort algorithm
-void mergeSort(int arr[], int left, int right) {
+void mergeSort(ll arr[], ll left, ll right) {
     if (left < right) {
-        int mid = left + (right - left) / 2;
+        ll mid = left + (right - left) / 2;
         mergeSort(arr, left, mid);
         mergeSort(arr, mid + 1, right);
         merge(arr, left, mid, right);
@@ -91,58 +93,66 @@ void mergeSort(int arr[], int left, int right) {
 }
 
 // Radix sort algorithm
-void radixSort(int arr[], int size) {
-    int max = arr[0];
-    for (int i = 1; i < size; ++i) {
+void radixSort(ll arr[], ll size) {
+    ll max = arr[0];
+    for (ll i = 1; i < size; ++i) {
         if (arr[i] > max) {
             max = arr[i];
         }
     }
 
-    for (int exp = 1; max / exp > 0; exp *= 10) {
-        int output[size];
-        int count[10] = {0};
+    for (ll exp = 1; max / exp > 0; exp *= 10) {
+        ll output[size];
+        ll count[10] = {0};
 
-        for (int i = 0; i < size; ++i) {
+        for (ll i = 0; i < size; ++i) {
             count[(arr[i] / exp) % 10]++;
         }
 
-        for (int i = 1; i < 10; ++i) {
+        for (ll i = 1; i < 10; ++i) {
             count[i] += count[i - 1];
         }
 
-        for (int i = size - 1; i >= 0; --i) {
+        for (ll i = size - 1; i >= 0; --i) {
             output[count[(arr[i] / exp) % 10] - 1] = arr[i];
             count[(arr[i] / exp) % 10]--;
         }
 
-        for (int i = 0; i < size; ++i) {
+        for (ll i = 0; i < size; ++i) {
             arr[i] = output[i];
         }
     }
 }
 
 // Sequential inner join
-void innerJoin(int arr1[], char **data1 , int size1, int arr2[], char **data2, int size2) {
-    for (int i = 0; i < size1; i++) {
-        for (int j = 0; j < size2; j++) {
+void innerJoin(ll arr1[], char **data1 , ll size1, ll arr2[], char **data2, ll size2) {
+    FILE *file = fopen("output.txt", "w");
+    if (file == NULL) {
+        perror("Error opening file");
+        exit(EXIT_FAILURE);
+    }
+    fprintf(file, "id,value,symbol\n");
+    for (ll i = 0; i < size1; i++) {
+        for (ll j = 0; j < size2; j++) {
             if (arr1[i] == arr2[j]) {
-                printf("%s%s\n", data1[i], data2[j]);
+                fprintf(file, "%s", data1[i]);
+                fprintf(file, "%s", data2[j]);
             }
         }
     }
+    fclose(file);
 }
 
-int readCSV(char *filename, char **data, int arr[], char *column, int *columnIndex) {
+ll readCSV(char *filename, char **data, ll arr[], char *column, ll *columnIndex) {
     FILE* file = fopen(filename, "r");
-    int size = 0;
+    ll size = 0;
     char line[1024];
     bool firstLine = true;
-    int num_tokens;
+    ll num_tokens;
     while (fgets(line, sizeof(line), file)) {
         if (firstLine) {
             char** tokens = split(line, ',', &num_tokens);
-            for (int i = 0; i < num_tokens; i++) {
+            for (ll i = 0; i < num_tokens; i++) {
                 if (strncmp(column, tokens[i], strlen(column)) == 0) {
                     *columnIndex = i;
                     break;
@@ -178,22 +188,41 @@ int main() {
                 scanf("%s", table);
                 printf("WHERE ");
                 scanf("%s", column);
-                int target;
+                ll target;
                 printf("EQUAL TO ");
-                scanf("%d", &target);
-                int data[MAX_VALUES], result[MAX_VALUES], columnIndex;
+                scanf("%lld", &target);
+                ll data[MAX_VALUES], result[MAX_VALUES], columnIndex;
                 char** data_tokens = (char**)malloc(MAX_VALUES * sizeof(char*));
                 strcat(table, ".csv");
-                int size = readCSV(table, data_tokens, data, column, &columnIndex);
-                int count = linearSearch(data, result, size, target);
-                printf("Result:\n");
-                if (count != -1) {
-                    for (int i = 0; i <= count; i++) {
-                        printf("%s", data_tokens[result[i]]);
-                    }
-                } else {
-                    printf("Element not found.\n");
+                ll size = readCSV(table, data_tokens, data, column, &columnIndex);
+
+                // EVALUATION
+                clock_t start, end;
+                start = clock();
+                ll count = linearSearch(data, result, size, target);
+                end = clock();
+                printf("Time taken: %f\n", (double)(end - start) / CLOCKS_PER_SEC);
+
+                // Open the file for writing
+                FILE *file = fopen("output.txt", "w");
+                if (file == NULL) {
+                    perror("Error opening file");
+                    exit(EXIT_FAILURE);
                 }
+                fprintf(file, "id,value,symbol\n");
+
+                // Write the results to the file
+                if (count == 0) {
+                    fprintf(file, "\nElement not found.");
+                } else {
+                    for (ll i = 0; i < count; i++) {
+                        fprintf(file, "%s", data_tokens[result[i]]);
+                    }
+                }
+
+                // Close the file
+                fclose(file);
+
                 free(data_tokens);
                 break;
             }
@@ -203,26 +232,51 @@ int main() {
                 scanf("%s", table);
                 printf("ORDER BY ");
                 scanf("%s", column);
-                int data[MAX_VALUES], columnIndex;
+                ll data[MAX_VALUES], columnIndex;
                 char** data_tokens = (char**)malloc(MAX_VALUES * sizeof(char*));
                 strcat(table, ".csv");
-                int size = readCSV(table, data_tokens, data, column, &columnIndex);
+                ll size = readCSV(table, data_tokens, data, column, &columnIndex);
+
+                // EVALUATION
+                clock_t start, end;
+                start = clock();
                 mergeSort(data, 0, size - 1);
-                printf("Result:\n");
+                end = clock();
+                printf("Time taken: %f\n", (double)(end - start) / CLOCKS_PER_SEC);
+
+                // Open the file for writing
+                FILE *file = fopen("output.txt", "w");
+                if (file == NULL) {
+                    perror("Error opening file");
+                    exit(EXIT_FAILURE);
+                }
+                fprintf(file, "id,value,symbol\n");
+
                 bool *visited = (bool*)malloc(size * sizeof(bool));
+                memset(visited, 0, size * sizeof(bool));
                 for (int i = 0; i < size; i++) {
                     for (int j = 0; j < size; j++) {
-                        int num_tokens;
+                        ll num_tokens;
                         char *tokens = strdup(data_tokens[j]);
                         char** db_info = split(tokens, ',', &num_tokens);
                         if (atoi(db_info[columnIndex]) == data[i] && !visited[j]) {
                             visited[j] = true;
-                            printf("%s", data_tokens[j]);
+                            fprintf(file, "%s", data_tokens[j]);
                             break;
                         }
+                        free(tokens);
+                        for (int k = 0; k < num_tokens; k++) {
+                            free(db_info[k]);
+                        }
+                        free(db_info);
                     }
                 }
+
+                // Close the file
+                fclose(file);
+
                 free(data_tokens);
+                free(visited);
                 break;
             case 3: {
                 char table1[50], table2[50];
@@ -235,17 +289,21 @@ int main() {
                 scanf("%s", column1);
                 printf("EQUAL %s.", table2);
                 scanf("%s", column2);
-                int data1[MAX_VALUES], data2[MAX_VALUES], columnIndex1, columnIndex2;
+                ll data1[MAX_VALUES], data2[MAX_VALUES], columnIndex1, columnIndex2;
                 char** data_tokens1 = (char**)malloc(MAX_VALUES * sizeof(char*));
                 char** data_tokens2 = (char**)malloc(MAX_VALUES * sizeof(char*));
                 strcat(table1, ".csv");
-                int size1 = readCSV(table1, data_tokens1, data1, column1, &columnIndex1);
+                ll size1 = readCSV(table1, data_tokens1, data1, column1, &columnIndex1);
                 strcat(table2, ".csv");
-                int size2 = readCSV(table2, data_tokens2, data2, column2, &columnIndex2);
+                ll size2 = readCSV(table2, data_tokens2, data2, column2, &columnIndex2);
 
-                // Perform inner join operation
-                printf("Result:\n");
+                // EVALUATION
+                clock_t start, end;
+                start = clock();
                 innerJoin(data1, data_tokens1, size1, data2, data_tokens2, size2);
+                end = clock();
+                printf("Time taken: %f\n", (double)(end - start) / CLOCKS_PER_SEC);
+
                 free(data_tokens1);
                 free(data_tokens2);
                 break;
