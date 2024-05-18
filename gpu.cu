@@ -12,7 +12,7 @@
 typedef long long ll;
 
 #define MAX_VALUES 1000
-#define MAX_MATCHES (MAX_VALUES * MAX_VALUES)
+#define MAX_MATCHES ((ll)MAX_VALUES * MAX_VALUES)
 #define BLOCK_SIZE 256
 
 // Function to split a string by delimiter
