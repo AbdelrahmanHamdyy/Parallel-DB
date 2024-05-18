@@ -226,7 +226,7 @@ int main() {
                 free(data_tokens);
                 break;
             }
-            case 2:
+            case 2: {
                 char column[50], table[50];
                 printf("SELECT * FROM ");
                 scanf("%s", table);
@@ -254,8 +254,8 @@ int main() {
 
                 bool *visited = (bool*)malloc(size * sizeof(bool));
                 memset(visited, 0, size * sizeof(bool));
-                for (int i = 0; i < size; i++) {
-                    for (int j = 0; j < size; j++) {
+                for (ll i = 0; i < size; i++) {
+                    for (ll j = 0; j < size; j++) {
                         ll num_tokens;
                         char *tokens = strdup(data_tokens[j]);
                         char** db_info = split(tokens, ',', &num_tokens);
@@ -265,7 +265,7 @@ int main() {
                             break;
                         }
                         free(tokens);
-                        for (int k = 0; k < num_tokens; k++) {
+                        for (ll k = 0; k < num_tokens; k++) {
                             free(db_info[k]);
                         }
                         free(db_info);
@@ -278,6 +278,7 @@ int main() {
                 free(data_tokens);
                 free(visited);
                 break;
+            }
             case 3: {
                 char table1[50], table2[50];
                 printf("SELECT * FROM ");

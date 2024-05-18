@@ -1,8 +1,8 @@
 import csv
 import random
 
-SIZE = 10
-MAX_VALUE = 20
+SIZE = 10000
+MAX_VALUE = 10000
 
 def generate():
     '''
