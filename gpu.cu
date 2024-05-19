@@ -74,6 +74,57 @@ bool isSorted(ll* arr, ll size)  {
     return true;
 }
 
+// Standard binary search function which runs on the device
+__device__ ll binarySearch(ll *input, ll left, ll right, ll target) {
+    while (left <= right) {
+        ll mid = (left + right) / 2;
+
+        if (input[mid] == target) {
+            return mid;
+        } else if (input[mid] < target) {
+            left = mid + 1;
+        } else {
+            right = mid - 1;
+        }
+    }
+
+    return -1;
+}
+
+__global__ void parallelBinarySearch(ll *input, ll n, ll target, ll *output) {
+    // Shared memory to store the result of each thread
+    __shared__ ll result[BLOCK_SIZE];
+
+    // Thread ID
+    ll tid = threadIdx.x;
+
+    // Calculate the chunk size
+    ll chunkSize = (n + BLOCK_SIZE - 1) / BLOCK_SIZE;
+
+    // Calculate the start and end index of the chunk for this thread
+    ll left = tid * chunkSize;
+    ll right = min(left + chunkSize - 1, n - 1);
+
+    // Perform binary search on the chunk of the array
+    result[tid] = binarySearch(input, left, right, target);
+
+    // Wait for all threads to finish
+    __syncthreads();
+
+    // Perform parallel reduction to find the first non-negative result
+    for (ll stride = BLOCK_SIZE / 2; stride > 0; stride /= 2) {
+        if (tid < stride && result[tid] == -1)
+            result[tid] = result[tid + stride];
+
+        // Synchronize threads
+        __syncthreads();
+    }
+
+    // Set the result of the block in the output
+    if (tid == 0)
+        *output = result[0];
+}
+
 __global__ void parallelLinearSearch(ll arr[], ll size, ll *matchedIndices, int *numMatches, ll target) {
     __shared__ ll sharedArr[BLOCK_SIZE];
     ll index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -125,6 +176,76 @@ __global__ void parallelInnerJoin(ll arr1[], ll arr2[], ll *matchedIndices, int 
             }
         }
     }
+}
+
+void streamLinearSearchWrapper(ll arr[], char **data, ll size, ll target) {
+    ll *d_arr;
+    int *numMatches = (int*)malloc(sizeof(int));
+    *numMatches = 0;
+    ll *matchedIndices = (ll*)malloc(MAX_VALUES * sizeof(ll));
+    ll *d_matchedIndices;
+    int *d_numMatches;
+
+    const int nStreams = 4; // Define the number of streams
+    cudaStream_t streams[nStreams];
+
+    for (int i = 0; i < nStreams; ++i) {
+        cudaStreamCreate(&streams[i]);
+    }
+
+    cudaMalloc(&d_arr, size * sizeof(ll));
+    cudaMalloc(&d_matchedIndices, MAX_VALUES * sizeof(ll));
+    cudaMalloc(&d_numMatches, sizeof(int));
+
+    cudaMemcpy(d_numMatches, numMatches, sizeof(int), cudaMemcpyHostToDevice);
+
+    const ll streamSize = size / nStreams;
+    const ll streamBytes = streamSize * sizeof(ll);
+
+    for (int i = 0; i < nStreams; ++i) {
+        ll offset = i * streamSize;
+        cudaMemcpyAsync(&d_arr[offset], &arr[offset], streamBytes, cudaMemcpyHostToDevice, streams[i]);
+        parallelLinearSearch<<<(streamSize + BLOCK_SIZE - 1) / BLOCK_SIZE, BLOCK_SIZE, 0, streams[i]>>>(
+            d_arr, streamSize, d_matchedIndices, d_numMatches, target);
+        cudaMemcpyAsync(&arr[offset], &d_arr[offset], streamBytes, cudaMemcpyDeviceToHost, streams[i]);
+    }
+
+    // Synchronize all streams
+    for (int i = 0; i < nStreams; ++i) {
+        cudaStreamSynchronize(streams[i]);
+    }
+
+    cudaMemcpy(numMatches, d_numMatches, sizeof(int), cudaMemcpyDeviceToHost);
+    cudaMemcpy(matchedIndices, d_matchedIndices, (*numMatches) * sizeof(ll), cudaMemcpyDeviceToHost);
+
+    // Open the file for writing
+    FILE *file = fopen("output.txt", "w");
+    if (file == NULL) {
+        perror("Error opening file");
+        exit(EXIT_FAILURE);
+    }
+    fprintf(file, "id,value,symbol\n");
+
+    // Write the results to the file
+    if (*numMatches == 0) {
+        fprintf(file, "Element not found.\n");
+    } else {
+        for (int i = 0; i < *numMatches / nStreams; i++) {
+            fprintf(file, "%s", data[matchedIndices[i]]);
+        }
+    }
+
+    // Close the file
+    fclose(file);
+
+    cudaFree(d_arr);
+    cudaFree(d_matchedIndices);
+    cudaFree(d_numMatches);
+    for (int i = 0; i < nStreams; ++i) {
+        cudaStreamDestroy(streams[i]);
+    }
+    free(numMatches);
+    free(matchedIndices);
 }
 
 void linearSearchWrapper(ll arr[], char **data, ll size, ll target) {
@@ -237,46 +358,36 @@ void mergeSortWrapper(ll arr[], ll size, char **data_tokens, ll columnIndex) {
     free(visited);
 }
 
-void linearSearchWrapper(ll arr[], char **data, ll size, ll target) {
-    ll *d_arr;
+void innerJoinWrapper(ll arr1[], ll arr2[], char **data1, char **data2, ll size1, ll size2) {
+    ll *d_arr1, *d_arr2;
     int *numMatches = (int*)malloc(sizeof(int));
     *numMatches = 0;
-    ll *matchedIndices = (ll*)malloc(MAX_VALUES * sizeof(ll));
+    ll *matchedIndices = (ll*)malloc(MAX_MATCHES * 2 * sizeof(ll));
     ll *d_matchedIndices;
     int *d_numMatches;
 
-    const int nStreams = 4; // Define the number of streams
-    cudaStream_t streams[nStreams];
+    cudaStream_t stream;
+    cudaStreamCreate(&stream);
 
-    for (int i = 0; i < nStreams; ++i) {
-        cudaStreamCreate(&streams[i]);
-    }
-
-    cudaMalloc(&d_arr, size * sizeof(ll));
-    cudaMalloc(&d_matchedIndices, MAX_VALUES * sizeof(ll));
+    cudaMalloc(&d_arr1, size1 * sizeof(ll));
+    cudaMalloc(&d_arr2, size2 * sizeof(ll));
+    cudaMalloc(&d_matchedIndices, MAX_MATCHES * 2 * sizeof(ll));
     cudaMalloc(&d_numMatches, sizeof(int));
 
-    cudaMemcpy(d_numMatches, numMatches, sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpyAsync(d_arr1, arr1, size1 * sizeof(ll), cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(d_arr2, arr2, size2 * sizeof(ll), cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(d_numMatches, numMatches, sizeof(int), cudaMemcpyHostToDevice, stream);
 
-    const ll streamSize = size / nStreams;
-    const ll streamBytes = streamSize * sizeof(ll);
+    ll numberOfBlocks = (size1 + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
-    for (int i = 0; i < nStreams; ++i) {
-        ll offset = i * streamSize;
-        cudaMemcpyAsync(&d_arr[offset], &arr[offset], streamBytes, cudaMemcpyHostToDevice, streams[i]);
-        parallelLinearSearch<<<(streamSize + BLOCK_SIZE - 1) / BLOCK_SIZE, BLOCK_SIZE, 0, streams[i]>>>(
-            d_arr, streamSize, d_matchedIndices, d_numMatches, target);
-        cudaMemcpyAsync(&arr[offset], &d_arr[offset], streamBytes, cudaMemcpyDeviceToHost, streams[i]);
-    }
+    parallelInnerJoin<<<numberOfBlocks, BLOCK_SIZE, 0, stream>>>(d_arr1, d_arr2, d_matchedIndices, d_numMatches, size1, size2);
 
-    // Synchronize all streams
-    for (int i = 0; i < nStreams; ++i) {
-        cudaStreamSynchronize(streams[i]);
-    }
+    cudaStreamSynchronize(stream);
+    cudaMemcpyAsync(numMatches, d_numMatches, sizeof(int), cudaMemcpyDeviceToHost, stream);
+    cudaMemcpyAsync(matchedIndices, d_matchedIndices, *numMatches * 2 * sizeof(ll), cudaMemcpyDeviceToHost, stream);
 
-    cudaMemcpy(numMatches, d_numMatches, sizeof(int), cudaMemcpyDeviceToHost);
-    cudaMemcpy(matchedIndices, d_matchedIndices, (*numMatches) * sizeof(ll), cudaMemcpyDeviceToHost);
-
+    cudaStreamSynchronize(stream);
+    
     // Open the file for writing
     FILE *file = fopen("output.txt", "w");
     if (file == NULL) {
@@ -285,26 +396,25 @@ void linearSearchWrapper(ll arr[], char **data, ll size, ll target) {
     }
     fprintf(file, "id,value,symbol\n");
 
-    // Write the results to the file
-    if (*numMatches == 0) {
-        fprintf(file, "Element not found.\n");
-    } else {
-        for (int i = 0; i < *numMatches / nStreams; i++) {
-            fprintf(file, "%s", data[matchedIndices[i]]);
-        }
+    // Write the join results to the file
+    for (int i = 0; i < *numMatches; i++) {
+        int index1 = matchedIndices[i * 2];
+        int index2 = matchedIndices[(i * 2) + 1];
+        fprintf(file, "%s", data1[index1]);
+        fprintf(file, "%s", data2[index2]);
     }
 
     // Close the file
     fclose(file);
 
-    cudaFree(d_arr);
-    cudaFree(d_matchedIndices);
-    cudaFree(d_numMatches);
-    for (int i = 0; i < nStreams; ++i) {
-        cudaStreamDestroy(streams[i]);
-    }
     free(numMatches);
     free(matchedIndices);
+
+    cudaFree(d_arr1);
+    cudaFree(d_arr2);
+    cudaFree(d_matchedIndices);
+    cudaFree(d_numMatches);
+    cudaStreamDestroy(stream);
 }
 
 int main() {
