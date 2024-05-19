@@ -276,7 +276,6 @@ int main()
       indices[i]=i;
     }
 
-
     int* gpuArr;
     int* gpuIndices;
 
