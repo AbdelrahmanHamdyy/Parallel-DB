@@ -202,6 +202,14 @@ void streamLinearSearchWrapper(ll arr[], char **data, ll size, ll target) {
     const ll streamSize = size / nStreams;
     const ll streamBytes = streamSize * sizeof(ll);
 
+    // Create CUDA events for timing
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+
+    // Record the start event
+    cudaEventRecord(start, 0);
+
     for (int i = 0; i < nStreams; ++i) {
         ll offset = i * streamSize;
         cudaMemcpyAsync(&d_arr[offset], &arr[offset], streamBytes, cudaMemcpyHostToDevice, streams[i]);
@@ -214,6 +222,17 @@ void streamLinearSearchWrapper(ll arr[], char **data, ll size, ll target) {
     for (int i = 0; i < nStreams; ++i) {
         cudaStreamSynchronize(streams[i]);
     }
+
+    // Record the stop event
+    cudaEventRecord(stop, 0);
+    cudaEventSynchronize(stop);
+
+    // Calculate the elapsed time
+    float milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+
+    // Print the elapsed time
+    printf("Time taken: %f ms\n", milliseconds);
 
     cudaMemcpy(numMatches, d_numMatches, sizeof(int), cudaMemcpyDeviceToHost);
     cudaMemcpy(matchedIndices, d_matchedIndices, (*numMatches) * sizeof(ll), cudaMemcpyDeviceToHost);
@@ -246,6 +265,10 @@ void streamLinearSearchWrapper(ll arr[], char **data, ll size, ll target) {
     }
     free(numMatches);
     free(matchedIndices);
+
+    // Destroy the events
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
 }
 
 void linearSearchWrapper(ll arr[], char **data, ll size, ll target) {
@@ -256,24 +279,34 @@ void linearSearchWrapper(ll arr[], char **data, ll size, ll target) {
     ll *d_matchedIndices;
     int *d_numMatches;
 
-    cudaStream_t stream;
-    cudaStreamCreate(&stream);
-
     cudaMalloc(&d_arr, size * sizeof(ll));
     cudaMalloc(&d_matchedIndices, MAX_VALUES * sizeof(ll));
     cudaMalloc(&d_numMatches, sizeof(int));
 
-    cudaMemcpyAsync(d_arr, arr, size * sizeof(ll), cudaMemcpyHostToDevice, stream);
-    cudaMemcpyAsync(d_numMatches, numMatches, sizeof(int), cudaMemcpyHostToDevice, stream);
+    cudaMemcpy(d_arr, arr, size * sizeof(ll), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_numMatches, numMatches, sizeof(int), cudaMemcpyHostToDevice);
 
-    parallelLinearSearch<<<(size + BLOCK_SIZE - 1) / BLOCK_SIZE, BLOCK_SIZE, 0, stream>>>(d_arr, size, d_matchedIndices, d_numMatches, target);
+    // Create CUDA events for timing
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
 
-    cudaStreamSynchronize(stream);
-    cudaMemcpyAsync(numMatches, d_numMatches, sizeof(int), cudaMemcpyDeviceToHost, stream);
-    cudaMemcpyAsync(matchedIndices, d_matchedIndices, *numMatches * 2 * sizeof(ll), cudaMemcpyDeviceToHost, stream);
+    // Record the start event
+    cudaEventRecord(start, 0);
+    parallelLinearSearch<<<(size + BLOCK_SIZE - 1) / BLOCK_SIZE, BLOCK_SIZE>>>(d_arr, size, d_matchedIndices, d_numMatches, target);
+    // Record the stop event
+    cudaEventRecord(stop, 0);
+    cudaEventSynchronize(stop);
 
-    cudaStreamSynchronize(stream);
-    
+    // Calculate the elapsed time
+    float milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+
+    // Print the elapsed time
+    printf("Time taken: %f ms\n", milliseconds);
+    cudaMemcpy(numMatches, d_numMatches, sizeof(int), cudaMemcpyDeviceToHost);
+    cudaMemcpy(matchedIndices, d_matchedIndices, *numMatches * 2 * sizeof(ll), cudaMemcpyDeviceToHost);
+
     // Open the file for writing
     FILE *file = fopen("output.txt", "w");
     if (file == NULL) {
@@ -297,28 +330,26 @@ void linearSearchWrapper(ll arr[], char **data, ll size, ll target) {
     cudaFree(d_arr);
     cudaFree(d_matchedIndices);
     cudaFree(d_numMatches);
-    cudaStreamDestroy(stream);
+
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
 }
 
 void mergeSortWrapper(ll arr[], ll size, char **data_tokens, ll columnIndex) {
     ll *d_arr, *d_sorted;
-    cudaStream_t stream;
-    cudaStreamCreate(&stream);
 
     cudaMalloc((void **)&d_arr, size * sizeof(ll));
     cudaMalloc((void **)&d_sorted, size * sizeof(ll));
-    cudaMemcpyAsync(d_arr, arr, size * sizeof(ll), cudaMemcpyHostToDevice, stream);
+    cudaMemcpyAsync(d_arr, arr, size * sizeof(ll), cudaMemcpyHostToDevice);
     ll numberOfBlocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
     for (ll i = 2; i < size * 2; i *= 2) {
-        parallelMergeSort<<<numberOfBlocks, BLOCK_SIZE, 0, stream>>>(d_arr, d_sorted, size, i);
-        cudaStreamSynchronize(stream);
+        parallelMergeSort<<<numberOfBlocks, BLOCK_SIZE>>>(d_arr, d_sorted, size, i);
         // Swap
         ll *temp = d_arr;
         d_arr = d_sorted;
         d_sorted = temp;
     }
-    cudaMemcpyAsync(arr, d_arr, size * sizeof(ll), cudaMemcpyDeviceToHost, stream);
-    cudaStreamSynchronize(stream);
+    cudaMemcpy(arr, d_arr, size * sizeof(ll), cudaMemcpyDeviceToHost);
 
     // Open the file for writing
     FILE *file = fopen("output.txt", "w");
@@ -354,8 +385,102 @@ void mergeSortWrapper(ll arr[], ll size, char **data_tokens, ll columnIndex) {
 
     cudaFree(d_arr);
     cudaFree(d_sorted);
-    cudaStreamDestroy(stream);
     free(visited);
+}
+
+void streamInnerJoinWrapper(ll arr1[], ll arr2[], char **data1, char **data2, ll size1, ll size2) {
+    ll *d_arr1, *d_arr2;
+    int *numMatches = (int*)malloc(sizeof(int));
+    *numMatches = 0;
+    ll *matchedIndices = (ll*)malloc(MAX_MATCHES * 2 * sizeof(ll));
+    ll *d_matchedIndices;
+    int *d_numMatches;
+
+    const int nStreams = 4; // Define the number of streams
+    cudaStream_t streams[nStreams];
+
+    for (int i = 0; i < nStreams; ++i) {
+        cudaStreamCreate(&streams[i]);
+    }
+
+    cudaMalloc(&d_arr1, size1 * sizeof(ll));
+    cudaMalloc(&d_arr2, size2 * sizeof(ll));
+    cudaMalloc(&d_matchedIndices, MAX_MATCHES * 2 * sizeof(ll));
+    cudaMalloc(&d_numMatches, sizeof(int));
+
+    cudaMemcpy(d_numMatches, numMatches, sizeof(int), cudaMemcpyHostToDevice);
+
+    const ll streamSize = size1 / nStreams;
+    const ll streamBytes = streamSize * sizeof(ll);
+
+    // Create CUDA events for timing
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+
+    // Record the start event
+    cudaEventRecord(start, 0);
+
+    for (int i = 0; i < nStreams; ++i) {
+        ll offset = i * streamSize;
+        cudaMemcpyAsync(&d_arr1[offset], &arr1[offset], streamBytes, cudaMemcpyHostToDevice, streams[i]);
+        cudaMemcpyAsync(d_arr2, arr2, size2 * sizeof(ll), cudaMemcpyHostToDevice, streams[i]);
+        parallelInnerJoin<<<(streamSize + BLOCK_SIZE - 1) / BLOCK_SIZE, BLOCK_SIZE, 0, streams[i]>>>(
+            d_arr1, d_arr2, d_matchedIndices, d_numMatches, streamSize, size2);
+    }
+
+    // Synchronize all streams
+    for (int i = 0; i < nStreams; ++i) {
+        cudaStreamSynchronize(streams[i]);
+    }
+
+    // Record the stop event
+    cudaEventRecord(stop, 0);
+    cudaEventSynchronize(stop);
+
+    // Calculate the elapsed time
+    float milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+
+    // Print the elapsed time
+    printf("Time taken: %f ms\n", milliseconds);
+
+    cudaMemcpy(numMatches, d_numMatches, sizeof(int), cudaMemcpyDeviceToHost);
+    cudaMemcpy(matchedIndices, d_matchedIndices, (*numMatches) * 2 * sizeof(ll), cudaMemcpyDeviceToHost);
+
+    // Open the file for writing
+    FILE *file = fopen("output.txt", "w");
+    if (file == NULL) {
+        perror("Error opening file");
+        exit(EXIT_FAILURE);
+    }
+    fprintf(file, "id,value,symbol\n");
+
+    // Write the join results to the file
+    for (int i = 0; i < *numMatches; i++) {
+        int index1 = matchedIndices[i * 2];
+        int index2 = matchedIndices[(i * 2) + 1];
+        fprintf(file, "%s", data1[index1]);
+        fprintf(file, "%s", data2[index2]);
+    }
+
+    // Close the file
+    fclose(file);
+
+    free(numMatches);
+    free(matchedIndices);
+
+    cudaFree(d_arr1);
+    cudaFree(d_arr2);
+    cudaFree(d_matchedIndices);
+    cudaFree(d_numMatches);
+    for (int i = 0; i < nStreams; ++i) {
+        cudaStreamDestroy(streams[i]);
+    }
+
+    // Destroy the events
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
 }
 
 void innerJoinWrapper(ll arr1[], ll arr2[], char **data1, char **data2, ll size1, ll size2) {
@@ -366,27 +491,37 @@ void innerJoinWrapper(ll arr1[], ll arr2[], char **data1, char **data2, ll size1
     ll *d_matchedIndices;
     int *d_numMatches;
 
-    cudaStream_t stream;
-    cudaStreamCreate(&stream);
-
     cudaMalloc(&d_arr1, size1 * sizeof(ll));
     cudaMalloc(&d_arr2, size2 * sizeof(ll));
     cudaMalloc(&d_matchedIndices, MAX_MATCHES * 2 * sizeof(ll));
     cudaMalloc(&d_numMatches, sizeof(int));
 
-    cudaMemcpyAsync(d_arr1, arr1, size1 * sizeof(ll), cudaMemcpyHostToDevice, stream);
-    cudaMemcpyAsync(d_arr2, arr2, size2 * sizeof(ll), cudaMemcpyHostToDevice, stream);
-    cudaMemcpyAsync(d_numMatches, numMatches, sizeof(int), cudaMemcpyHostToDevice, stream);
+    cudaMemcpy(d_arr1, arr1, size1 * sizeof(ll), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_arr2, arr2, size2 * sizeof(ll), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_numMatches, numMatches, sizeof(int), cudaMemcpyHostToDevice);
 
     ll numberOfBlocks = (size1 + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
-    parallelInnerJoin<<<numberOfBlocks, BLOCK_SIZE, 0, stream>>>(d_arr1, d_arr2, d_matchedIndices, d_numMatches, size1, size2);
+    // Create CUDA events for timing
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
 
-    cudaStreamSynchronize(stream);
-    cudaMemcpyAsync(numMatches, d_numMatches, sizeof(int), cudaMemcpyDeviceToHost, stream);
-    cudaMemcpyAsync(matchedIndices, d_matchedIndices, *numMatches * 2 * sizeof(ll), cudaMemcpyDeviceToHost, stream);
+    // Record the start event
+    cudaEventRecord(start, 0);
+    parallelInnerJoin<<<numberOfBlocks, BLOCK_SIZE>>>(d_arr1, d_arr2, d_matchedIndices, d_numMatches, size1, size2);
+    // Record the stop event
+    cudaEventRecord(stop, 0);
+    cudaEventSynchronize(stop);
 
-    cudaStreamSynchronize(stream);
+    // Calculate the elapsed time
+    float milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+
+    // Print the elapsed time
+    printf("Time taken: %f ms\n", milliseconds);
+    cudaMemcpy(numMatches, d_numMatches, sizeof(int), cudaMemcpyDeviceToHost);
+    cudaMemcpy(matchedIndices, d_matchedIndices, *numMatches * 2 * sizeof(ll), cudaMemcpyDeviceToHost);
     
     // Open the file for writing
     FILE *file = fopen("output.txt", "w");
@@ -414,7 +549,9 @@ void innerJoinWrapper(ll arr1[], ll arr2[], char **data1, char **data2, ll size1
     cudaFree(d_arr2);
     cudaFree(d_matchedIndices);
     cudaFree(d_numMatches);
-    cudaStreamDestroy(stream);
+    
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
 }
 
 int main() {

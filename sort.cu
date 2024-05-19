@@ -296,10 +296,6 @@ int main()
     cudaEventCreate(&startGPU);
     cudaEventCreate(&stopGPU);
 
-
-    cudaEvent_t startGPU, stopGPU;
-    cudaEventCreate(&startGPU);
-    cudaEventCreate(&stopGPU);
     float millisecondsGPU = 0;
 
     //Initialize CPU clock counters
