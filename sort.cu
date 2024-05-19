@@ -320,7 +320,7 @@ int main()
     //Transfer Sorted array back to CPU
     cudaMemcpy(indices, gpuIndices, size * sizeof(int), cudaMemcpyDeviceToHost);
     cudaMemcpy(arr, gpuArr, size * sizeof(int), cudaMemcpyDeviceToHost);
-    FILE *file = fopen("GPU_sort_output.txt", "w");
+    FILE *file = fopen("output.txt", "w");
     if (file == NULL) {
         perror("Error opening file");
         return 1;
